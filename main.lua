@@ -26,11 +26,19 @@ local function getGma3Pools()
       DataPool        = Root().ShowData.DataPools;
       Image           = Root().ShowData.ImagePools;
       Fixturetype     = Root().ShowData.LivePatch.FixtureTypes;
+      GelPools        = Root().ShowData.GelPools;
   }
 end
 
 -- Plugin Config ---
 local pluginOffset = 3000;
+
+local buttonWidth = 110;
+local buttonHeight = 110;
+
+local buttonSeparation = 5;
+
+local maximumPresets = 40;
 --------------------
 
 local cColMixTypeNone = "None"
@@ -43,7 +51,8 @@ function print(value)
   Printf(tostring(value))
 end
 
-function groupArrayToNumber(groups)
+------------ Suggestions ------------
+function arrayToNumber(groups)
   local result = {}
 
   for _, group in ipairs(groups) do
@@ -143,6 +152,7 @@ function getAllColorGroups()
     end
   end
 
+  execute("Clear");
   return result
 end
 
@@ -151,8 +161,30 @@ function getColorPreset(index)
 end
 
 function getAllColorPresets()
-  
-  getColorPreset(1):Dump();
+  local result = {}
+
+  for i=1, maximumPresets do
+    local current = getColorPreset(i);
+
+    if current ~= nil then
+      table.insert(result, current)
+    end
+  end
+
+  return result
+end
+-----------------------------------
+
+------------ Create Layout ------------
+function getAppearanceFromPreset(presetIndex)
+
+  local data = GetPresetData(presetIndex, false, false)[3];
+
+  return {
+    color_R = data[1].absolute;
+    color_G = data[2].absolute;
+    color_B = data[3].absolute;
+  }
 
 end
 
@@ -164,18 +196,61 @@ function buildUI()
   MessageBox(messageBox)
 end
 
+function buildLayout()
+
+end
+-----------------------------------
+
+------------ BuildUI ------------
+function buildDefaultUI(groupSuggest, presetSuggest)
+
+  local textInputs = {
+    { name = "Offset: ", value = tostring(pluginOffset), whiteFilter = "0123456789" },
+    { name = "Grid-Groups", value = groupSuggest, whiteFilter = ",0123456789" },
+    { name = "Bump-Groups", value = string.match(groupSuggest, "([^,]+)"), whiteFilter = "0123456789" },
+    { name = "Grid-Presets", value = presetSuggest, whiteFilter = ",0123456789" }
+  };
+
+
+  local commands = {
+    { name = "next", value = 1 },
+    { name = "close", value = 0 }
+  };
+
+
+  return {
+    title = "Color Grid Config",
+    commands = commands,
+    inputs = textInputs
+  };
+end
+
 function buildPluginInfo() end
 
-function buildErrorUI() end
+function buildErrorUI(errorMessage)
+
+  return {
+    title = "Error while Building the Colorgrid",
+
+  };
+end
+-----------------------------------
 
 function main()
-  local groupSuggest = getAllColorGroups()
-  local groupString = convertNumberArrayToStringList(groupArrayToNumber(groupSuggest))
-  local presetSuggest = "";
+  local groupSuggest = getAllColorGroups();
+  local groupString = convertNumberArrayToStringList(arrayToNumber(groupSuggest));
+  local presetSuggest = getAllColorPresets();
+  local presetString = convertNumberArrayToStringList(arrayToNumber(presetSuggest));
 
-  local colorPresets = getAllColorPresets();
+  -- TODO - Check if Groups are Valid and Presets are valid
 
-  print(groupString)
+  local defaultUI = MessageBox(buildDefaultUI(groupString, presetString));
+
+  for key, value in pairs(defaultUI.inputs) do
+
+    print("Key: " .. key .. " Value: " .. value)
+
+  end
 end
 
 return main
