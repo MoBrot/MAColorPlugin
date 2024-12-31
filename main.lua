@@ -65,8 +65,23 @@ function print(value)
 end
 
 ------------ Util ------------
+
 function pluginColorPresetAmount()
   return #pluginGroups * #pluginPresets;
+end
+
+function mapDeactivateMacroFromGroupIndex(groupArrayIndex)
+  return pluginOffset + pluginColorPresetAmount() + groupArrayIndex + #pluginGroups - 1;
+end
+
+function mapColorAppearanceFromPresetID(presetArrayID, isActive)
+
+  local appearanceOffset = 0;
+  if isActive == false then
+    appearanceOffset = appearanceOffset + #pluginPresets;
+  end
+
+  return pluginOffset + presetArrayID + appearanceOffset;
 end
 
 function stringToIntArray(str)
@@ -279,12 +294,14 @@ function createMacrosForColorRow(macroOffset)
     local currentColorMacro = macroPool[macroPosition];
     currentColorMacro:Set("appearance", pluginOffset + pi + #pluginPresets);
 
-    execute("Store Macro " .. macroPosition .. " 'Set Active Image' 'Command' 'Assign #[Appearance " .. (pluginOffset + pi) .. "] at #[Macro ".. macroPosition .. "]'");
-
     result[pi] = macroPosition;
   end
 
   return result;
+end
+
+function storeNewMacroLine(macroIndex, name, command)
+  execute("Store Macro " .. macroIndex .. " '" .. name .. "' 'Command' '" .. command .. "'");
 end
 
 function createGridMacrosAndSequenses()
@@ -292,8 +309,6 @@ function createGridMacrosAndSequenses()
   -- Preset to Appearance map -> 
   local macroPool = getGma3Pools().Macro;
   local sequencePool = getGma3Pools().Sequence;
-
-  print("createGridMacrosAndSequenses");
 
   -- Create Group Grid --
   for gi = 1, #pluginGroups do
@@ -314,7 +329,7 @@ function createGridMacrosAndSequenses()
 
     currentGroupMacro:Set("name", group.name);
     currentGroupMacro:Set("appearance", pluginOffset);
-    execute("Store Macro " .. currentGroupMacroIndex .. " 'Select Group' 'Command' '#[Group " .. group.no .. "]'");
+    storeNewMacroLine(currentGroupMacroIndex, "Select Group", "#[Group " .. group.no .. "]");
 
     for pi = 1, #pluginPresets do
 
@@ -336,8 +351,18 @@ function createGridMacrosAndSequenses()
 
     local macros = createMacrosForColorRow(macroOffset);
     for i = 1, #macros do
-      execute("Store Macro " .. macros[i] .. " 'Go Sequence' 'Command' 'Go+ #[Sequence " .. macros[i] .. "]'")
-    end    
+      storeNewMacroLine(macros[i], "Go Sequence", "Go+ #[Sequence " .. macros[i] .. "]");
+      storeNewMacroLine(macros[i], "Set Active Image", "Assign Appearance " .. mapColorAppearanceFromPresetID(i, true) .. " at Macro ".. macros[i]);
+      for m = 1, #macros do
+        if m ~= i then
+          storeNewMacroLine(
+            macros[i]
+          , "Assign Deactivating Appearance"
+          , "Assign Appearance " .. mapColorAppearanceFromPresetID(m, false) .. " at Macro " .. macros[m]
+          );
+        end
+      end
+    end
   end
 end
 
