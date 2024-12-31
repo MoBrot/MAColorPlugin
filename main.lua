@@ -40,6 +40,9 @@ local maximumPresets = 40;
 local pluginGroups = {};
 local pluginPresets = {};
 local pluginBumpGroup = 0;
+
+local imageFolder = "C:/ProgramData/MALightingTechnology/gma3_library/media/images";
+
 --------------------
 
 local cColMixTypeNone = "None"
@@ -58,6 +61,31 @@ local function stringToIntArray(str)
       table.insert(result, tonumber(num)) -- Umwandlung in Ganzzahl
   end
   return result
+end
+
+function getAsFixture(inFixtureIndex)
+  local myResult = nil
+  local myLowestSubFixture = nil
+  local myNextSubfixture = GetSubfixture(inFixtureIndex)
+  
+  while myNextSubfixture ~= nil do
+    myLowestSubFixture = myNextSubfixture
+    myNextSubfixture = GetSubfixture(myLowestSubFixture)		
+  end
+  
+  if myLowestSubFixture ~= nil then
+    myResult = myLowestSubFixture
+  end
+  
+  return myResult
+end
+
+function getAsGroup(groupIndex)
+  return getGma3Pools().Group[groupIndex];
+end
+
+function getAsColorPreset(index)
+  return getGma3Pools().Preset:Children()[4]:Children()[index];
 end
 -----------------------------------
 
@@ -84,23 +112,6 @@ function convertNumberArrayToStringList(array)
   end
 
   return result
-end
-
-function getAsFixture(inFixtureIndex)
-  local myResult = nil
-  local myLowestSubFixture = nil
-  local myNextSubfixture = GetSubfixture(inFixtureIndex)
-  
-  while myNextSubfixture ~= nil do
-    myLowestSubFixture = myNextSubfixture
-    myNextSubfixture = GetSubfixture(myLowestSubFixture)		
-  end
-  
-  if myLowestSubFixture ~= nil then
-    myResult = myLowestSubFixture
-  end
-  
-  return myResult
 end
 
 local function getUiChannelIdxForAttributeName(inFixtureIndex, inAttributeName)
@@ -166,15 +177,11 @@ function getAllColorGroups()
   return result
 end
 
-function getColorPreset(index)
-  return getGma3Pools().Preset:Children()[4]:Children()[index];
-end
-
 function getAllColorPresets()
   local result = {}
 
   for i=1, maximumPresets do
-    local current = getColorPreset(i);
+    local current = getAsColorPreset(i);
 
     if current ~= nil then
       table.insert(result, current)
@@ -188,9 +195,7 @@ end
 ------------ Create Layout ------------
 
 function getColorAppearanceFromPreset(presetIndex)
-  local data = GetPresetData(getColorPreset(presetIndex), false, false);
-
-  print(data);
+  local data = GetPresetData(getAsColorPreset(presetIndex), false, false);
 
   return {
     color_R = 255 * (data[3][1].absolute / 100),
@@ -199,31 +204,97 @@ function getColorAppearanceFromPreset(presetIndex)
   };
 end
 
+function setColorAppearance(appearance, color, image)
+  appearance:Set("imager", color.color_R);
+  appearance:Set("imageg", color.color_G);
+  appearance:Set("imageb", color.color_B);
+  appearance:Set("imagemode", "Stretch");
+  execute("Assign Image 3." .. image.index .. " at Appearance " .. appearance.no)
+end
+
 function createAppereances()
-
-  Import()
-
-  execute("Store Appearance " .. (pluginOffset + 1) .. " Thru " .. (pluginOffset + (#pluginPresets * 2)) .. " /nu");
-
   local appearancePool = getGma3Pools().Appearance;
+
+  ------- Create Color Appearances -------
+  -- Required Images --
+  local pluginImages = {
+    activeImage = {
+      name = "Color-GridItem-active.png.xml",
+      index = pluginOffset + 1
+    },
+    inActiveImage = {
+      name = "Color-GridItem-inactive.png.xml",
+      index = pluginOffset + 2
+    }
+  };
+
+  -- Import Images --
+  for key, image in pairs(pluginImages) do
+    execute("Import Image 'Images'." .. image.index .." /File '" .. image.name .. "' /nc /o")
+  end
+
+  execute("Store Appearance " .. (pluginOffset) .. " Thru " .. (pluginOffset + (#pluginPresets * 2)) .. " /nu");
+
   for i = 1, #pluginPresets do
     local color = getColorAppearanceFromPreset(pluginPresets[i]);
 
-    appearancePool[pluginOffset + i]:Set("backr", color.color_R);
-    appearancePool[pluginOffset + i]:Set("backg", color.color_G);
-    appearancePool[pluginOffset + i]:Set("backb", color.color_B);
+    local currentAppearanceIndex = pluginOffset + i;
+    local currentAppearance = appearancePool[currentAppearanceIndex];
 
-    appearancePool[pluginOffset + i]:Set("imager", color.color_R);
-    appearancePool[pluginOffset + i]:Set("imageg", color.color_G);
-    appearancePool[pluginOffset + i]:Set("imageb", color.color_B);
+    setColorAppearance(currentAppearance, color, pluginImages.activeImage);
 
-    appearancePool[pluginOffset + i]:Set("backalpha", 255);
-    appearancePool[pluginOffset + i]:Set("name", "");
+    local currentAppearanceIndexInactivs = pluginOffset + i + #pluginPresets;
+    local currentAppearanceInactivs = appearancePool[currentAppearanceIndexInactivs];
+
+    setColorAppearance(currentAppearanceInactivs, color, pluginImages.inActiveImage);
+  end
+  -------------------------------------------
+
+   ------- Create Transparent Appearances -------
+
+   local transparentAppearance = appearancePool[pluginOffset];
+
+   -------------------------------------------
+end
+
+function mapAppearanceToColorMacro(pi)
+
+  local result = pluginOffset;
+
+  return result;
+end
+
+function createGridMacrosAndSequenses()
+
+  -- Preset to Appearance map -> 
+  local macroPool = getGma3Pools().Macro;
+
+  print("createGridMacrosAndSequenses");
+
+  for gi = 1, #pluginGroups do
+
+    local macroOffset = pluginOffset + (gi * #pluginPresets) - #pluginPresets;
+    local group = getAsGroup(pluginGroups[gi]);
+
+    for pi = 1, #pluginPresets do
+
+      local macroPosition = macroOffset + pi - 1;
+      execute("Store Macro " .. macroPosition);
+      execute("Assign Appearance " .. (pluginOffset + pi) .. " at Macro " .. macroPosition);
+
+      execute("Store Sequence " .. macroPosition);
+      execute("Label Sequence " .. macroPosition .. " '" .. group.name .. " - " .. getAsColorPreset(pluginPresets[pi]).name .. "'")
+
+    end
   end
 end
 
 function buildLayout()
+
+  execute("Store Layout " .. pluginOffset);
+
   createAppereances();
+  createGridMacrosAndSequenses();
 end
 -----------------------------------
 
@@ -270,9 +341,6 @@ function main()
   local groupString = convertNumberArrayToStringList(arrayToNumber(groupSuggest));
   local presetSuggest = getAllColorPresets();
   local presetString = convertNumberArrayToStringList(arrayToNumber(presetSuggest));
-
-  --
-
 
   -- TODO - Check if Groups are Valid and Presets are valid
 
