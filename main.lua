@@ -41,7 +41,17 @@ local pluginGroups = {};
 local pluginPresets = {};
 local pluginBumpGroup = 0;
 
-local imageFolder = "C:/ProgramData/MALightingTechnology/gma3_library/media/images";
+-- Required Images --
+local pluginUI = {
+  activeImage = {
+    name = "Color-GridItem-active.png.xml",
+    index = pluginOffset + 1
+  },
+  inActiveImage = {
+    name = "Color-GridItem-inactive.png.xml",
+    index = pluginOffset + 2
+  }
+};
 
 --------------------
 
@@ -55,7 +65,11 @@ function print(value)
 end
 
 ------------ Util ------------
-local function stringToIntArray(str)
+function pluginColorPresetAmount()
+  return #pluginGroups * #pluginPresets;
+end
+
+function stringToIntArray(str)
   local result = {}
   for num in string.gmatch(str, "([^,]+)") do
       table.insert(result, tonumber(num)) -- Umwandlung in Ganzzahl
@@ -216,20 +230,9 @@ function createAppereances()
   local appearancePool = getGma3Pools().Appearance;
 
   ------- Create Color Appearances -------
-  -- Required Images --
-  local pluginImages = {
-    activeImage = {
-      name = "Color-GridItem-active.png.xml",
-      index = pluginOffset + 1
-    },
-    inActiveImage = {
-      name = "Color-GridItem-inactive.png.xml",
-      index = pluginOffset + 2
-    }
-  };
 
   -- Import Images --
-  for key, image in pairs(pluginImages) do
+  for key, image in pairs(pluginUI) do
     execute("Import Image 'Images'." .. image.index .." /File '" .. image.name .. "' /nc /o")
   end
 
@@ -241,12 +244,12 @@ function createAppereances()
     local currentAppearanceIndex = pluginOffset + i;
     local currentAppearance = appearancePool[currentAppearanceIndex];
 
-    setColorAppearance(currentAppearance, color, pluginImages.activeImage);
+    setColorAppearance(currentAppearance, color, pluginUI.activeImage);
 
     local currentAppearanceIndexInactivs = pluginOffset + i + #pluginPresets;
     local currentAppearanceInactivs = appearancePool[currentAppearanceIndexInactivs];
 
-    setColorAppearance(currentAppearanceInactivs, color, pluginImages.inActiveImage);
+    setColorAppearance(currentAppearanceInactivs, color, pluginUI.inActiveImage);
   end
   -------------------------------------------
 
@@ -257,6 +260,33 @@ function createAppereances()
    -------------------------------------------
 end
 
+function storePoolObject(poolType, index)
+  execute("Delete " .. poolType .. " " .. index);
+  execute("Store " .. poolType .. " " .. index);
+end
+
+function createMacrosForColorRow(macroOffset)
+
+  local macroPool = getGma3Pools().Macro;
+
+  local result = {};
+
+  for pi = 1, #pluginPresets do
+
+    local macroPosition = macroOffset + pi - 1;
+
+    storePoolObject("Macro", macroPosition);
+    local currentColorMacro = macroPool[macroPosition];
+    currentColorMacro:Set("appearance", pluginOffset + pi + #pluginPresets);
+
+    execute("Store Macro " .. macroPosition .. " 'Set Active Image' 'Command' 'Assign #[Appearance " .. (pluginOffset + pi) .. "] at #[Macro ".. macroPosition .. "]'");
+
+    result[pi] = macroPosition;
+  end
+
+  return result;
+end
+
 function createGridMacrosAndSequenses()
 
   -- Preset to Appearance map -> 
@@ -265,25 +295,34 @@ function createGridMacrosAndSequenses()
 
   print("createGridMacrosAndSequenses");
 
+  -- Create Group Grid --
   for gi = 1, #pluginGroups do
 
     local macroOffset = pluginOffset + (gi * #pluginPresets) - #pluginPresets;
     local group = getAsGroup(pluginGroups[gi]);
 
-    execute("Store MATricks " .. macroOffset);
-    local currentMATricks = getGma3Pools().Matricks[macroOffset];
+    -- Store MATricks --
+    local matricksPosition = pluginOffset + gi;
+    storePoolObject("MAtricks", matricksPosition);
+    local currentMATricks = getGma3Pools().Matricks[matricksPosition];
+    currentMATricks:Set("name", group.name .. " Color MATricks");
+
+    -- Create Group Macros --
+    local currentGroupMacroIndex = pluginOffset + pluginColorPresetAmount() + gi - 1;
+    storePoolObject("Macro", currentGroupMacroIndex);
+    local currentGroupMacro = macroPool[currentGroupMacroIndex];
+
+    currentGroupMacro:Set("name", group.name);
+    currentGroupMacro:Set("appearance", pluginOffset);
+    execute("Store Macro " .. currentGroupMacroIndex .. " 'Select Group' 'Command' '#[Group " .. group.no .. "]'");
 
     for pi = 1, #pluginPresets do
 
       local colorPreset = getAsColorPreset(pluginPresets[pi]);
-
       local macroPosition = macroOffset + pi - 1;
 
-      execute("Store Macro " .. macroPosition);
-      local currentMacro = macroPool[macroPosition];
-      currentMacro:Set("appearance", pluginOffset + pi);
-
-      execute("Store Sequence " .. macroPosition);
+      -- Sequences --
+      storePoolObject("Sequence", macroPosition);
       local currentSequence = sequencePool[macroPosition];
       currentSequence:Set("name", group.name .. " - " .. colorPreset.name);
       currentSequence:Set('offwhenoverridden','true');
@@ -292,7 +331,13 @@ function createGridMacrosAndSequenses()
       execute("Assign Group " .. group.no .. " at cue 1 part 0.1 Sequence " .. macroPosition .. " /nu");
       execute("Assign Preset 4." .. colorPreset.no .. " at cue 1 part 0.1 Sequence " .. macroPosition .. " /nu");
       execute("Assign MATricks " .. currentMATricks.no .. " at cue 1 part 0.1 Sequence " .. macroPosition .. " /nu");
+
     end
+
+    local macros = createMacrosForColorRow(macroOffset);
+    for i = 1, #macros do
+      execute("Store Macro " .. macros[i] .. " 'Go Sequence' 'Command' 'Go+ #[Sequence " .. macros[i] .. "]'")
+    end    
   end
 end
 
