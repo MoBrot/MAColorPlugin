@@ -257,17 +257,11 @@ function createAppereances()
    -------------------------------------------
 end
 
-function mapAppearanceToColorMacro(pi)
-
-  local result = pluginOffset;
-
-  return result;
-end
-
 function createGridMacrosAndSequenses()
 
   -- Preset to Appearance map -> 
   local macroPool = getGma3Pools().Macro;
+  local sequencePool = getGma3Pools().Sequence;
 
   print("createGridMacrosAndSequenses");
 
@@ -276,15 +270,28 @@ function createGridMacrosAndSequenses()
     local macroOffset = pluginOffset + (gi * #pluginPresets) - #pluginPresets;
     local group = getAsGroup(pluginGroups[gi]);
 
+    execute("Store MATricks " .. macroOffset);
+    local currentMATricks = getGma3Pools().Matricks[macroOffset];
+
     for pi = 1, #pluginPresets do
 
+      local colorPreset = getAsColorPreset(pluginPresets[pi]);
+
       local macroPosition = macroOffset + pi - 1;
+
       execute("Store Macro " .. macroPosition);
-      execute("Assign Appearance " .. (pluginOffset + pi) .. " at Macro " .. macroPosition);
+      local currentMacro = macroPool[macroPosition];
+      currentMacro:Set("appearance", pluginOffset + pi);
 
       execute("Store Sequence " .. macroPosition);
-      execute("Label Sequence " .. macroPosition .. " '" .. group.name .. " - " .. getAsColorPreset(pluginPresets[pi]).name .. "'")
+      local currentSequence = sequencePool[macroPosition];
+      currentSequence:Set("name", group.name .. " - " .. colorPreset.name);
+      currentSequence:Set('offwhenoverridden','true');
 
+      -- Create and Configure Recipe --
+      execute("Assign Group " .. group.no .. " at cue 1 part 0.1 Sequence " .. macroPosition .. " /nu");
+      execute("Assign Preset 4." .. colorPreset.no .. " at cue 1 part 0.1 Sequence " .. macroPosition .. " /nu");
+      execute("Assign MATricks " .. currentMATricks.no .. " at cue 1 part 0.1 Sequence " .. macroPosition .. " /nu");
     end
   end
 end
