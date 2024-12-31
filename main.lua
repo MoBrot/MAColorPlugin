@@ -353,15 +353,19 @@ function createGridMacrosAndSequenses()
     for i = 1, #macros do
       storeNewMacroLine(macros[i], "Go Sequence", "Go+ #[Sequence " .. macros[i] .. "]");
       storeNewMacroLine(macros[i], "Set Active Image", "Assign Appearance " .. mapColorAppearanceFromPresetID(i, true) .. " at Macro ".. macros[i]);
+      
+      local assignString = "";
       for m = 1, #macros do
         if m ~= i then
-          storeNewMacroLine(
-            macros[i]
-          , "Assign Deactivating Appearance"
-          , "Assign Appearance " .. mapColorAppearanceFromPresetID(m, false) .. " at Macro " .. macros[m]
-          );
+          assignString = assignString .. "Assign Appearance " .. mapColorAppearanceFromPresetID(m, false) .. " at Macro " .. macros[m] .. ";";
         end
       end
+
+      storeNewMacroLine(
+            macros[i]
+          , "Assign Deactivating Appearance"
+          , assignString
+          );
     end
   end
 end
