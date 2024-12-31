@@ -70,8 +70,8 @@ function pluginColorPresetAmount()
   return #pluginGroups * #pluginPresets;
 end
 
-function mapDeactivateMacroFromGroupIndex(groupArrayIndex)
-  return pluginOffset + pluginColorPresetAmount() + groupArrayIndex + #pluginGroups - 1;
+function mapMacroIndexFromPresetAndGroup(presetArrayID, groupArrayID)
+  return pluginOffset + ((groupArrayID - 1) * #pluginPresets) + (presetArrayID - 1);
 end
 
 function mapColorAppearanceFromPresetID(presetArrayID, isActive)
@@ -82,6 +82,10 @@ function mapColorAppearanceFromPresetID(presetArrayID, isActive)
   end
 
   return pluginOffset + presetArrayID + appearanceOffset;
+end
+
+function getGroupOffsetIndex()
+  return pluginOffset + pluginColorPresetAmount();
 end
 
 function stringToIntArray(str)
@@ -323,7 +327,7 @@ function createGridMacrosAndSequenses()
     currentMATricks:Set("name", group.name .. " Color MATricks");
 
     -- Create Group Macros --
-    local currentGroupMacroIndex = pluginOffset + pluginColorPresetAmount() + gi - 1;
+    local currentGroupMacroIndex = getGroupOffsetIndex() + gi - 1;
     storePoolObject("Macro", currentGroupMacroIndex);
     local currentGroupMacro = macroPool[currentGroupMacroIndex];
 
@@ -367,6 +371,24 @@ function createGridMacrosAndSequenses()
           , assignString
           );
     end
+  end
+
+
+  -- Create All Color Change Macros --
+  for pi = 1, #pluginPresets do
+
+    local currentAllColorChangeMacroIndex = getGroupOffsetIndex() + #pluginGroups + pi - 1;
+    storePoolObject("Macro", currentAllColorChangeMacroIndex);
+    local currentAllColorChangeMacro = macroPool[currentAllColorChangeMacroIndex];
+
+    currentAllColorChangeMacro:Set("appearance", mapColorAppearanceFromPresetID(pi, true));
+
+    local goString = "";
+    for groupIndex = 1, #pluginGroups do
+      goString = goString .. "Go+ Macro " .. mapMacroIndexFromPresetAndGroup(pi, groupIndex) .. ";"
+    end
+
+    storeNewMacroLine(currentAllColorChangeMacroIndex, "Change Groups", goString);
   end
 end
 
