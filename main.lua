@@ -32,9 +32,9 @@ end
 
 -- Plugin Config ---
 local pluginOffset = 3000;
-local buttonWidth = 110;
-local buttonHeight = 110;
-local buttonSeparation = 5;
+local pluginButtonWidth = 110;
+local pluginButtonHeight = 110;
+local pluginButtonSeparation = 6;
 local maximumPresets = 40;
 
 local pluginGroups = {};
@@ -54,6 +54,8 @@ local pluginUI = {
 };
 
 --------------------
+
+local layoutItems = {};
 
 local cColMixTypeNone = "None"
 local cColMixTypeRGBCMY = "RGB_CMY"
@@ -86,6 +88,10 @@ end
 
 function getGroupOffsetIndex()
   return pluginOffset + pluginColorPresetAmount();
+end
+
+function getAllColorChangeMacrosOffset()
+  return getGroupOffsetIndex() + #pluginGroups;
 end
 
 function stringToIntArray(str)
@@ -279,12 +285,31 @@ function createAppereances()
    -------------------------------------------
 end
 
+function registerLayoutItem(iobjectType, iobjectIndex, iwidth, iheight, iposX, iposY, irow, icolumn, ivisibleText)
+
+  local finalWidth = iwidth or pluginButtonWidth;
+  local finalHeight = iheight or pluginButtonHeight;
+
+  layoutItem = {
+    objectType = iobjectType,
+    objectIndex = iobjectIndex,
+    width = finalWidth,
+    height = finalHeight,
+    posX = iposX or ((icolumn * finalWidth) + (icolumn * pluginButtonSeparation)),
+    posY = iposY or ((irow * finalHeight) + (irow * pluginButtonSeparation)),
+    visibleText = ivisibleText
+  }
+
+  table.insert(layoutItems, layoutItem);
+end
+
 function storePoolObject(poolType, index)
   execute("Delete " .. poolType .. " " .. index);
   execute("Store " .. poolType .. " " .. index);
 end
 
-function createMacrosForColorRow(macroOffset)
+--- Group 0 = All Selector Row, Group #pluginGroups + 1 = Bump Group
+function createMacrosForColorRow(macroOffset, defaultActiv, group)
 
   local macroPool = getGma3Pools().Macro;
 
@@ -296,8 +321,9 @@ function createMacrosForColorRow(macroOffset)
 
     storePoolObject("Macro", macroPosition);
     local currentColorMacro = macroPool[macroPosition];
-    currentColorMacro:Set("appearance", pluginOffset + pi + #pluginPresets);
+    currentColorMacro:Set("appearance", mapColorAppearanceFromPresetID(pi, defaultActiv));
 
+    registerLayoutItem("Macro", macroPosition, nil, nil, nil, nil, group, pi, false);
     result[pi] = macroPosition;
   end
 
@@ -333,7 +359,10 @@ function createGridMacrosAndSequenses()
 
     currentGroupMacro:Set("name", group.name);
     currentGroupMacro:Set("appearance", pluginOffset);
+    storeNewMacroLine(currentGroupMacroIndex, "Clear", "Clear");
     storeNewMacroLine(currentGroupMacroIndex, "Select Group", "#[Group " .. group.no .. "]");
+
+    registerLayoutItem("Macro", currentGroupMacroIndex, nil, nil, nil, nil, gi, 0, true);
 
     for pi = 1, #pluginPresets do
 
@@ -353,7 +382,8 @@ function createGridMacrosAndSequenses()
 
     end
 
-    local macros = createMacrosForColorRow(macroOffset);
+    -- Create Color Macros
+    local macros = createMacrosForColorRow(macroOffset, false, gi);
     for i = 1, #macros do
       storeNewMacroLine(macros[i], "Go Sequence", "Go+ #[Sequence " .. macros[i] .. "]");
       storeNewMacroLine(macros[i], "Set Active Image", "Assign Appearance " .. mapColorAppearanceFromPresetID(i, true) .. " at Macro ".. macros[i]);
@@ -375,29 +405,55 @@ function createGridMacrosAndSequenses()
 
 
   -- Create All Color Change Macros --
-  for pi = 1, #pluginPresets do
+    local allColorChangeMacrosOffset = getAllColorChangeMacrosOffset();
+    local allColorChangeMacros = createMacrosForColorRow(allColorChangeMacrosOffset, true, 0);
 
-    local currentAllColorChangeMacroIndex = getGroupOffsetIndex() + #pluginGroups + pi - 1;
-    storePoolObject("Macro", currentAllColorChangeMacroIndex);
-    local currentAllColorChangeMacro = macroPool[currentAllColorChangeMacroIndex];
+    for macro = 1, #allColorChangeMacros do
+      local goString = "";
 
-    currentAllColorChangeMacro:Set("appearance", mapColorAppearanceFromPresetID(pi, true));
+      for groupIndex = 1, #pluginGroups do
+        goString = goString .. "Go+ Macro " .. mapMacroIndexFromPresetAndGroup(macro, groupIndex) .. ";"
+      end
 
-    local goString = "";
-    for groupIndex = 1, #pluginGroups do
-      goString = goString .. "Go+ Macro " .. mapMacroIndexFromPresetAndGroup(pi, groupIndex) .. ";"
+      storeNewMacroLine(allColorChangeMacros[macro], "Change Groups", goString);
     end
+end
 
-    storeNewMacroLine(currentAllColorChangeMacroIndex, "Change Groups", goString);
-  end
+function setLayoutItemProperty(layoutIndex, layoutItemIndex, property, value)
+  execute("Set Layout " .. layoutIndex .. "." .. layoutItemIndex .. " Property '" .. property .. "' " .. value);
 end
 
 function buildLayout()
 
-  execute("Store Layout " .. pluginOffset);
+  local layoutIndex = pluginOffset;
+
+  storePoolObject("Layout", layoutIndex)
 
   createAppereances();
   createGridMacrosAndSequenses();
+
+  local layoutItemIndex = 1;
+  -- Build Layout --
+  for itemKey, itemValue in ipairs(layoutItems) do
+    
+    print("KEy: " .. itemKey .. " Value: " .. tostring(itemValue));
+
+    execute("Assign " .. itemValue.objectType .. " " .. itemValue.objectIndex .. " at Layout " .. layoutIndex);
+
+    setLayoutItemProperty(layoutIndex, layoutItemIndex, "PosX", itemValue.posX);
+    setLayoutItemProperty(layoutIndex, layoutItemIndex, "PosY", itemValue.posY * -1);
+    setLayoutItemProperty(layoutIndex, layoutItemIndex, "PositionW", itemValue.width);
+    setLayoutItemProperty(layoutIndex, layoutItemIndex, "PositionH", itemValue.height);
+
+    if itemValue.visibleText == false then
+      execute("Set Layout " .. layoutIndex .. "." .. layoutItemIndex .. " Property 'VisibilityObjectName' off Executor");
+    end
+
+    layoutItemIndex = layoutItemIndex + 1;
+  end
+
+  -- Set Default Value
+  execute("Go+ Macro " .. getAllColorChangeMacrosOffset());
 end
 -----------------------------------
 
