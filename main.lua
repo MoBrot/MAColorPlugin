@@ -435,8 +435,6 @@ function buildLayout()
   local layoutItemIndex = 1;
   -- Build Layout --
   for itemKey, itemValue in ipairs(layoutItems) do
-    
-    print("KEy: " .. itemKey .. " Value: " .. tostring(itemValue));
 
     execute("Assign " .. itemValue.objectType .. " " .. itemValue.objectIndex .. " at Layout " .. layoutIndex);
 
