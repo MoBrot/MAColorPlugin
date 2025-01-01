@@ -32,7 +32,7 @@ end
 
 -- Plugin Config ---
 local pluginOffset = 3000;
-local pluginButtonWidth = 110;
+local pluginButtonWidth = 150;
 local pluginButtonHeight = 110;
 local pluginButtonSeparation = 6;
 local maximumPresets = 40;
@@ -74,6 +74,18 @@ end
 
 function getMATricksAppearanceIndex()
   return pluginOffset + (2 * #pluginPresets) + 1;
+end
+
+local totalNumberSymbolsToImport = 5;
+function getNumbersAppearancesOffset(activeStatus)
+
+  local offset = 0;
+
+  if activeStatus == false then
+    offset = totalNumberSymbolsToImport;
+  end
+
+  return getMATricksAppearanceIndex() + 1 + offset;
 end
 
 function mapMATricksIndexFromGroupArrayIndex(groupArrayID)
@@ -275,9 +287,11 @@ function createAppereances()
 
   -- Import Images --
   for key, image in pairs(pluginUI) do
+    execute("Delete Image " .. image.index);
     execute("Import Image 'Images'." .. image.index .." /File '" .. image.name .. "' /nc /o")
   end
 
+  execute("Delete Appearance " .. (pluginOffset) .. " Thru " .. (pluginOffset + (#pluginPresets * 2)) .. " /nu");
   execute("Store Appearance " .. (pluginOffset) .. " Thru " .. (pluginOffset + (#pluginPresets * 2)) .. " /nu");
 
   for i = 1, #pluginPresets do
@@ -298,9 +312,38 @@ function createAppereances()
   -- Create MATricks Appearance --
 
   storePoolObject("Appearance", getMATricksAppearanceIndex());
-  local matricksAppearance = getGma3Pools().Appearance[getMATricksAppearanceIndex()];
+  local matricksAppearance = appearancePool[getMATricksAppearanceIndex()];
   matricksAppearance:Set("name", "MATricks");
   matricksAppearance:Set('mediafilename', getSymbol("matricks"))
+
+  -- Create Number and Calculator Appearances --
+
+  local numberOffsetActiveOffset = getNumbersAppearancesOffset(true) + 1;
+  local numberOffsetInActiveOffset = getNumbersAppearancesOffset(false);
+
+  local calculatorOffset = getNumbersAppearancesOffset(true);
+
+  storePoolObject("Appearance", calculatorOffset);
+  local calculatorAppearance = appearancePool[calculatorOffset];
+  calculatorAppearance:Set("name", "Calculator");
+  calculatorAppearance:Set('mediafilename', getSymbol("calculator_white"));
+
+  for i = 1, totalNumberSymbolsToImport do
+    
+    local currentNumberOffsetActive = numberOffsetActiveOffset + i - 1;
+    local currentNumberOffsetInActive = numberOffsetInActiveOffset + i;
+
+    storePoolObject("Appearance", currentNumberOffsetActive);
+    storePoolObject("Appearance", currentNumberOffsetInActive);
+
+    local numberOffsetActive = appearancePool[currentNumberOffsetActive];
+    numberOffsetActive:Set("name", i - 1 .. " - Active");
+    numberOffsetActive:Set('mediafilename', getSymbol("number_" .. i - 1 .. "_white"));
+
+    local numberOffsetInActive = appearancePool[currentNumberOffsetInActive];
+    numberOffsetInActive:Set("name", i - 1 .. " - InActive");
+    numberOffsetInActive:Set('mediafilename', getSymbol("number_" .. i - 1 .. "_black"));
+  end
 end
 
 function registerLayoutItem(iobjectType, iobjectIndex, iwidth, iheight, iposX, iposY, irow, icolumn, ivisibleText)
@@ -436,6 +479,13 @@ function createGridMacrosAndSequenses()
     end
 end
 
+function createMATricksShortcut(macroOffset, matricksFunction, row, columnOffset)
+
+  storePoolObject("Macro", macroOffset .. " Thru " .. macroOffset + totalNumberSymbolsToImport);
+  
+
+end
+
 function createMATricksShortCutsAndExtendedOptions()
   local macroPool = getGma3Pools().Macro;
 
@@ -462,6 +512,13 @@ function createMATricksShortCutsAndExtendedOptions()
     registerLayoutItem("Macro", currentMacroIndex, nil, nil, nil, nil, gi, #pluginPresets + 2, false);
   end
 
+  local numbersMacroOffset = macroOffset + #pluginGroups;
+
+  createMATricksShortcut(numbersMacroOffset, "Delay From X", #pluginGroups + 3, 1);
+  createMATricksShortcut(numbersMacroOffset + (totalNumberSymbolsToImport * 1), "Delay To X", #pluginGroups + 3, 6);
+
+  createMATricksShortcut(numbersMacroOffset + (totalNumberSymbolsToImport * 2), "Fade From X", #pluginGroups + 4, 1);
+  createMATricksShortcut(numbersMacroOffset + (totalNumberSymbolsToImport * 3), "Fade To X", #pluginGroups + 4, 6);
 end
 
 function setLayoutItemProperty(layoutIndex, layoutItemIndex, property, value)
