@@ -334,6 +334,10 @@ function storeNewMacroLine(macroIndex, name, command)
   execute("Store Macro " .. macroIndex .. " '" .. name .. "' 'Command' '" .. command .. "'");
 end
 
+function assignToRecipe(sequenceIndex, assignType, assignTypeValueIndex, cue, part)
+  execute("Assign '" .. assignType .. "' " .. assignTypeValueIndex .. " at cue " .. cue .." part 0.'" .. part .."' Sequence " .. sequenceIndex .. " /nu");
+end
+
 function createGridMacrosAndSequenses()
 
   -- Preset to Appearance map -> 
@@ -376,9 +380,9 @@ function createGridMacrosAndSequenses()
       currentSequence:Set('offwhenoverridden','true');
 
       -- Create and Configure Recipe --
-      execute("Assign Group " .. group.no .. " at cue 1 part 0.1 Sequence " .. macroPosition .. " /nu");
-      execute("Assign Preset 4." .. colorPreset.no .. " at cue 1 part 0.1 Sequence " .. macroPosition .. " /nu");
-      execute("Assign MATricks " .. currentMATricks.no .. " at cue 1 part 0.1 Sequence " .. macroPosition .. " /nu");
+      assignToRecipe(macroPosition, "Group", group.no, 1, 1);
+      assignToRecipe(macroPosition, "Preset 4.", colorPreset.no, 1, 1);
+      assignToRecipe(macroPosition, "MATricks", currentMATricks.no, 1, 1);
 
     end
 
