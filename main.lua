@@ -68,6 +68,18 @@ end
 
 ------------ Util ------------
 
+function getSymbol(symbolName)
+  return "SYMBOL/symbols/" .. symbolName .. ".png";
+end
+
+function getMATricksAppearanceIndex()
+  return pluginOffset + (2 * #pluginPresets) + 1;
+end
+
+function mapMATricksIndexFromGroupArrayIndex(groupArrayID)
+  return pluginOffset + groupArrayID - 1;
+end
+
 function pluginColorPresetAmount()
   return #pluginGroups * #pluginPresets;
 end
@@ -125,6 +137,11 @@ end
 
 function getAsColorPreset(index)
   return getGma3Pools().Preset:Children()[4]:Children()[index];
+end
+
+function storePoolObject(poolType, index)
+  execute("Delete " .. poolType .. " " .. index);
+  execute("Store " .. poolType .. " " .. index);
 end
 -----------------------------------
 
@@ -278,11 +295,12 @@ function createAppereances()
   end
   -------------------------------------------
 
-   ------- Create Transparent Appearances -------
+  -- Create MATricks Appearance --
 
-   local transparentAppearance = appearancePool[pluginOffset];
-
-   -------------------------------------------
+  storePoolObject("Appearance", getMATricksAppearanceIndex());
+  local matricksAppearance = getGma3Pools().Appearance[getMATricksAppearanceIndex()];
+  matricksAppearance:Set("name", "MATricks");
+  matricksAppearance:Set('mediafilename', getSymbol("matricks"))
 end
 
 function registerLayoutItem(iobjectType, iobjectIndex, iwidth, iheight, iposX, iposY, irow, icolumn, ivisibleText)
@@ -301,11 +319,6 @@ function registerLayoutItem(iobjectType, iobjectIndex, iwidth, iheight, iposX, i
   }
 
   table.insert(layoutItems, layoutItem);
-end
-
-function storePoolObject(poolType, index)
-  execute("Delete " .. poolType .. " " .. index);
-  execute("Store " .. poolType .. " " .. index);
 end
 
 --- Group 0 = All Selector Row, Group #pluginGroups + 1 = Bump Group
@@ -335,7 +348,7 @@ function storeNewMacroLine(macroIndex, name, command)
 end
 
 function assignToRecipe(sequenceIndex, assignType, assignTypeValueIndex, cue, part)
-  execute("Assign '" .. assignType .. "' " .. assignTypeValueIndex .. " at cue " .. cue .." part 0.'" .. part .."' Sequence " .. sequenceIndex .. " /nu");
+  execute("Assign " .. assignType .. " " .. assignTypeValueIndex .. " at cue " .. cue .." part 0." .. part .." Sequence " .. sequenceIndex .. " /nu");
 end
 
 function createGridMacrosAndSequenses()
@@ -351,7 +364,7 @@ function createGridMacrosAndSequenses()
     local group = getAsGroup(pluginGroups[gi]);
 
     -- Store MATricks --
-    local matricksPosition = pluginOffset + gi;
+    local matricksPosition = mapMATricksIndexFromGroupArrayIndex(gi);
     storePoolObject("MAtricks", matricksPosition);
     local currentMATricks = getGma3Pools().Matricks[matricksPosition];
     currentMATricks:Set("name", group.name .. " Color MATricks");
@@ -400,10 +413,10 @@ function createGridMacrosAndSequenses()
       end
 
       storeNewMacroLine(
-            macros[i]
-          , "Assign Deactivating Appearance"
-          , assignString
-          );
+        macros[i],
+        "Assign Deactivating Appearance",
+        assignString
+      );
     end
   end
 
@@ -423,6 +436,34 @@ function createGridMacrosAndSequenses()
     end
 end
 
+function createMATricksShortCutsAndExtendedOptions()
+  local macroPool = getGma3Pools().Macro;
+
+  -- Extended --
+  local macroOffset = getAllColorChangeMacrosOffset() + #pluginPresets;
+
+  storePoolObject("Macro", macroOffset);
+  local labelMacro = macroPool[macroOffset];
+  labelMacro:Set("name", "MATricks Settings");
+  labelMacro:Set("appearance", pluginOffset);
+  registerLayoutItem("Macro", macroOffset, nil, nil, nil, nil, 0, #pluginPresets + 2, true);
+
+  for gi = 1, #pluginGroups do
+
+    local currentMacroIndex = macroOffset + gi;
+
+    storePoolObject("Macro", currentMacroIndex);
+    storeNewMacroLine(currentMacroIndex, "Edit MaTricks", "Edit MATricks " .. mapMATricksIndexFromGroupArrayIndex(gi));
+
+    local currentMacro = macroPool[currentMacroIndex];
+    currentMacro:Set("name", "Edit " .. getGma3Pools().Group[pluginGroups[gi]].name .. " Matricks");
+    currentMacro:Set("appearance", getMATricksAppearanceIndex());
+
+    registerLayoutItem("Macro", currentMacroIndex, nil, nil, nil, nil, gi, #pluginPresets + 2, false);
+  end
+
+end
+
 function setLayoutItemProperty(layoutIndex, layoutItemIndex, property, value)
   execute("Set Layout " .. layoutIndex .. "." .. layoutItemIndex .. " Property '" .. property .. "' " .. value);
 end
@@ -435,6 +476,7 @@ function buildLayout()
 
   createAppereances();
   createGridMacrosAndSequenses();
+  createMATricksShortCutsAndExtendedOptions();
 
   local layoutItemIndex = 1;
   -- Build Layout --
