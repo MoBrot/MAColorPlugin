@@ -37,6 +37,18 @@ local pluginButtonHeight = 150;
 local pluginButtonSeparation = 6;
 local maximumPresets = 40;
 
+-- In Seconds --
+local pluginMATricksShortcutTimes = {
+  0.5,
+  1,
+  2
+};
+
+local pluginMATricksWings = {
+  2,
+  4
+};
+
 local pluginGroups = {};
 local pluginPresets = {};
 local pluginBumpGroup = 0;
@@ -261,7 +273,7 @@ function getColorAppearanceFromPreset(presetIndex)
 
   local preset = getAsColorPreset(presetIndex);
 
-  if !GetPresetData(preset) then 
+  if not GetPresetData(preset) then 
     showFault("Error: Missing absolute color values.\n Is the universal fixture still patched?");
   end
 
@@ -272,7 +284,7 @@ function getColorAppearanceFromPreset(presetIndex)
 
   local data = GetPresetData(preset);
 
-  if (preset_content[3][1].absolute == nil) or (preset_content[4][1].absolute == nil) or (preset_content[5][1].absolute == nil) then
+  if (data[3][1].absolute == nil) or (data[4][1].absolute == nil) or (data[5][1].absolute == nil) then
 		showFault("Error: Missing absolute color values.\n Is the universal fixture still patched?");
   end
 
@@ -302,8 +314,8 @@ function createAppereances()
     execute("Import Image 'Images'." .. image.index .." /File '" .. image.name .. "' /nc /o")
   end
 
-  execute("Delete Appearance " .. (pluginOffset) .. " Thru " .. (pluginOffset + (#pluginPresets * 2)) .. " /nu");
-  execute("Store Appearance " .. (pluginOffset) .. " Thru " .. (pluginOffset + (#pluginPresets * 2)) .. " /nu");
+  storePoolObject("Appearance", (pluginOffset) .. " Thru " .. (pluginOffset + (#pluginPresets * 2)) .. " /nu")
+
 
   for i = 1, #pluginPresets do
     local color = getColorAppearanceFromPreset(pluginPresets[i]);
@@ -347,21 +359,24 @@ function registerLayoutItem(iobjectType, iobjectIndex, iwidth, iheight, iposX, i
 end
 
 --- Group 0 = All Selector Row, Group #pluginGroups + 1 = Bump Group
-function createMacrosForColorRow(macroOffset, defaultActiv, group)
-
-  local macroPool = getGma3Pools().Macro;
+function createMacrosForColorRow(macroOffset, defaultActiv, group, showText)
 
   local result = {};
+
+  showText = showText or false;
 
   for pi = 1, #pluginPresets do
 
     local macroPosition = macroOffset + pi - 1;
 
     storePoolObject("Macro", macroPosition);
-    local currentColorMacro = macroPool[macroPosition];
+    local currentColorMacro = getGma3Pools().Macro[macroPosition];
     currentColorMacro:Set("appearance", mapColorAppearanceFromPresetID(pi, defaultActiv));
+    if showText then
+      currentColorMacro:Set("name", getAsColorPreset(pluginPresets[pi]).name);
+    end
 
-    registerLayoutItem("Macro", macroPosition, nil, nil, nil, nil, group, pi, false);
+    registerLayoutItem("Macro", macroPosition, nil, nil, nil, nil, group, pi, showText or false);
     result[pi] = macroPosition;
   end
 
@@ -448,7 +463,7 @@ function createGridMacrosAndSequenses()
 
   -- Create All Color Change Macros --
     local allColorChangeMacrosOffset = getAllColorChangeMacrosOffset();
-    local allColorChangeMacros = createMacrosForColorRow(allColorChangeMacrosOffset, true, 0);
+    local allColorChangeMacros = createMacrosForColorRow(allColorChangeMacrosOffset, true, 0, true);
 
     for macro = 1, #allColorChangeMacros do
       local goString = "";
@@ -461,12 +476,28 @@ function createGridMacrosAndSequenses()
     end
 end
 
-function createMATricksShortcut(macroOffset, matricksFunction, colors, row, columnOffset)
-
-  local appearanceOffset = getNumbersAppearancesOffset()
-
-  storePoolObject("Macro", macroOffset .. " Thru " .. macroOffset + totalNumberSymbolsToImport);
+function createMATricksShortcut(value, macroOffset, appearanceOffset, matricksFunction, colors, row, columnOffset)
+  local appearancePool = getGma3Pools().Appearance;
   
+-- Create Apperances --
+  storePoolObject("Appearance", appearanceOffset); -- Inactive
+  storePoolObject("Appearance", appearanceOffset + 1); -- Active
+  storePoolObject("Appearance", appearanceOffset + 2); -- Calculator
+
+  setColorAppearance(appearancePool[appearanceOffset], colors, pluginUI.inActiveImage);
+  setColorAppearance(appearancePool[appearanceOffset + 1], colors, pluginUI.activeImage);
+  local calculatorAppearance = appearancePool[appearanceOffset + 2];
+  setColorAppearance(calculatorAppearance, colors, pluginUI.activeImage);
+  calculatorAppearance:Set("mediafilename", getSymbol("calculator_black"));
+
+  for i = 1, #value do
+
+    local currentValue = value[i];
+    local currentMacroID = macroOffset + i - 1;
+
+    storePoolObject("Macro", currentMacroID);
+
+  end
 end
 
 function createMATricksShortCutsAndExtendedOptions()
@@ -496,12 +527,63 @@ function createMATricksShortCutsAndExtendedOptions()
   end
 
   local numbersMacroOffset = macroOffset + #pluginGroups + 1;
+  local numbersAppearanceOffset = getMATricksAppearanceIndex() + 1;
 
-  createMATricksShortcut(numbersMacroOffset, "Delay From X", #pluginGroups + 3, 1);
-  createMATricksShortcut(numbersMacroOffset + (totalNumberSymbolsToImport * 1), "Delay To X", #pluginGroups + 3, 6);
+  createMATricksShortcut(
+    pluginMATricksShortcutTimes,
+     numbersMacroOffset,
+      numbersAppearanceOffset,
+       "Delay From X",
+        {
+          color_R = 255,
+          color_G = 162,
+          color_B = 13
+        },
+         #pluginGroups + 3,
+          1
+        );
 
-  createMATricksShortcut(numbersMacroOffset + (totalNumberSymbolsToImport * 2), "Fade From X", #pluginGroups + 4, 1);
-  createMATricksShortcut(numbersMacroOffset + (totalNumberSymbolsToImport * 3), "Wings", #pluginGroups + 4, 6);
+  createMATricksShortcut(
+    pluginMATricksShortcutTimes,
+     numbersMacroOffset + #pluginMATricksShortcutTimes,
+      numbersAppearanceOffset + #pluginMATricksShortcutTimes,
+       "Delay To X",
+        {
+          color_R = 255,
+          color_G = 162,
+          color_B = 13
+        },
+         #pluginGroups + 3,
+          6
+        );
+
+  createMATricksShortcut(
+    pluginMATricksShortcutTimes,
+     numbersMacroOffset + (#pluginMATricksShortcutTimes * 2),
+      numbersAppearanceOffset + (#pluginMATricksShortcutTimes * 2),
+       "Fade From X",
+        {
+          color_R = 13,
+          color_G = 255,
+          color_B = 53
+        },
+         #pluginGroups + 4,
+          1
+        );
+
+  createMATricksShortcut(
+    pluginMATricksWings,
+     numbersMacroOffset + (#pluginMATricksShortcutTimes * 3),
+      numbersAppearanceOffset + (#pluginMATricksShortcutTimes * 3),
+       "Wings",
+        {
+          color_R = 13,
+          color_G = 118,
+          color_B = 225
+        },
+         #pluginGroups + 5,
+          1
+        );
 end
 
 function setLayoutItemProperty(layoutIndex, layoutItemIndex, property, value)
