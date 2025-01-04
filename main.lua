@@ -158,10 +158,22 @@ function getAsColorPreset(index)
   return preset;
 end
 
-function storePoolObject(poolType, index)
+function storePoolObject(poolType, index, pool)
   execute("Delete " .. poolType .. " " .. index);
   execute("Store " .. poolType .. " " .. index);
+
+  if pool ~= nil then
+    return pool[index];
+  else
+    return nil;
+  end
 end
+
+function storePoolObjects(poolType, indexFrom, indexTo)
+  execute("Delete " .. poolType .. " " .. indexFrom .. " Thru" .. indexTo);
+  execute("Store " .. poolType .. " " .. indexFrom .. " Thru" .. indexTo);
+end
+
 -----------------------------------
 
 ------------ Suggestions ------------
@@ -314,7 +326,7 @@ function createAppereances()
     execute("Import Image 'Images'." .. image.index .." /File '" .. image.name .. "' /nc /o")
   end
 
-  storePoolObject("Appearance", (pluginOffset) .. " Thru " .. (pluginOffset + (#pluginPresets * 2)) .. " /nu")
+  storePoolObjects("Appearance", pluginOffset, (pluginOffset + (#pluginPresets * 2)));
 
 
   for i = 1, #pluginPresets do
@@ -333,9 +345,7 @@ function createAppereances()
   -------------------------------------------
 
   -- Create MATricks Appearance --
-
-  storePoolObject("Appearance", getMATricksAppearanceIndex());
-  local matricksAppearance = appearancePool[getMATricksAppearanceIndex()];
+  local matricksAppearance = storePoolObject("Appearance", getMATricksAppearanceIndex(), appearancePool);
   matricksAppearance:Set("name", "MATricks");
   matricksAppearance:Set('mediafilename', getSymbol("matricks"))
 end
@@ -369,8 +379,7 @@ function createMacrosForColorRow(macroOffset, defaultActiv, group, showText)
 
     local macroPosition = macroOffset + pi - 1;
 
-    storePoolObject("Macro", macroPosition);
-    local currentColorMacro = getGma3Pools().Macro[macroPosition];
+    local currentColorMacro = storePoolObject("Macro", macroPosition, getGma3Pools().Macro);
     currentColorMacro:Set("appearance", mapColorAppearanceFromPresetID(pi, defaultActiv));
     if showText then
       currentColorMacro:Set("name", getAsColorPreset(pluginPresets[pi]).name);
@@ -404,15 +413,12 @@ function createGridMacrosAndSequenses()
     local group = getAsGroup(pluginGroups[gi]);
 
     -- Store MATricks --
-    local matricksPosition = mapMATricksIndexFromGroupArrayIndex(gi);
-    storePoolObject("MAtricks", matricksPosition);
-    local currentMATricks = getGma3Pools().Matricks[matricksPosition];
+    local currentMATricks = storePoolObject("MAtricks", mapMATricksIndexFromGroupArrayIndex(gi), getGma3Pools().Matricks);
     currentMATricks:Set("name", group.name .. " Color MATricks");
 
     -- Create Group Macros --
     local currentGroupMacroIndex = getGroupOffsetIndex() + gi - 1;
-    storePoolObject("Macro", currentGroupMacroIndex);
-    local currentGroupMacro = macroPool[currentGroupMacroIndex];
+    local currentGroupMacro = storePoolObject("Macro", currentGroupMacroIndex, macroPool);
 
     currentGroupMacro:Set("name", group.name);
     currentGroupMacro:Set("appearance", pluginOffset);
@@ -427,8 +433,7 @@ function createGridMacrosAndSequenses()
       local macroPosition = macroOffset + pi - 1;
 
       -- Sequences --
-      storePoolObject("Sequence", macroPosition);
-      local currentSequence = sequencePool[macroPosition];
+      local currentSequence = storePoolObject("Sequence", macroPosition, sequencePool);
       currentSequence:Set("name", group.name .. " - " .. colorPreset.name);
       currentSequence:Set('offwhenoverridden','true');
 
@@ -478,16 +483,14 @@ end
 
 function createMATricksShortcut(value, macroOffset, appearanceOffset, matricksFunction, colors, row, columnOffset)
   local appearancePool = getGma3Pools().Appearance;
-  
--- Create Apperances --
-  storePoolObject("Appearance", appearanceOffset); -- Inactive
-  storePoolObject("Appearance", appearanceOffset + 1); -- Active
-  storePoolObject("Appearance", appearanceOffset + 2); -- Calculator
 
-  setColorAppearance(appearancePool[appearanceOffset], colors, pluginUI.inActiveImage);
-  setColorAppearance(appearancePool[appearanceOffset + 1], colors, pluginUI.activeImage);
-  local calculatorAppearance = appearancePool[appearanceOffset + 2];
-  setColorAppearance(calculatorAppearance, colors, pluginUI.activeImage);
+  local inActiveAppearance = storePoolObject("Appearance", appearanceOffset, appearancePool);
+  local activeAppearance = storePoolObject("Appearance", appearanceOffset + 1, appearancePool);
+  local calculatorAppearance = storePoolObject("Appearance", appearanceOffset + 2, appearancePool);
+
+  setColorAppearance(inActiveAppearance, colors, pluginUI.inActiveImage); -- Inactiv
+  setColorAppearance(activeAppearance, colors, pluginUI.activeImage); -- Active
+  setColorAppearance(calculatorAppearance, colors, pluginUI.activeImage); -- Calculator
   calculatorAppearance:Set("mediafilename", getSymbol("calculator_black"));
 
   for i = 1, #value do
@@ -495,7 +498,7 @@ function createMATricksShortcut(value, macroOffset, appearanceOffset, matricksFu
     local currentValue = value[i];
     local currentMacroID = macroOffset + i - 1;
 
-    storePoolObject("Macro", currentMacroID);
+    local currentMacro = storePoolObject("Macro", currentMacroID, getGma3Pools().Macro);
 
   end
 end
@@ -506,8 +509,7 @@ function createMATricksShortCutsAndExtendedOptions()
   -- Extended --
   local macroOffset = getAllColorChangeMacrosOffset() + #pluginPresets;
 
-  storePoolObject("Macro", macroOffset);
-  local labelMacro = macroPool[macroOffset];
+  local labelMacro = storePoolObject("Macro", macroOffset, macroPool);
   labelMacro:Set("name", "MATricks Settings");
   labelMacro:Set("appearance", pluginOffset);
   registerLayoutItem("Macro", macroOffset, nil, nil, nil, nil, 0, #pluginPresets + 2, true);
@@ -516,10 +518,10 @@ function createMATricksShortCutsAndExtendedOptions()
 
     local currentMacroIndex = macroOffset + gi;
 
-    storePoolObject("Macro", currentMacroIndex);
+    local currentMacro = storePoolObject("Macro", currentMacroIndex, macroPool);
+
     storeNewMacroLine(currentMacroIndex, "Edit MaTricks", "Edit MATricks " .. mapMATricksIndexFromGroupArrayIndex(gi));
 
-    local currentMacro = macroPool[currentMacroIndex];
     currentMacro:Set("name", "Edit " .. getGma3Pools().Group[pluginGroups[gi]].name .. " Matricks");
     currentMacro:Set("appearance", getMATricksAppearanceIndex());
 
