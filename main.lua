@@ -33,7 +33,7 @@ end
 -- Plugin Config ---
 local pluginOffset = 3000;
 local pluginButtonWidth = 150;
-local pluginButtonHeight = 110;
+local pluginButtonHeight = 150;
 local pluginButtonSeparation = 6;
 local maximumPresets = 40;
 
@@ -76,16 +76,8 @@ function getMATricksAppearanceIndex()
   return pluginOffset + (2 * #pluginPresets) + 1;
 end
 
-local totalNumberSymbolsToImport = 5;
-function getNumbersAppearancesOffset(activeStatus)
-
-  local offset = 0;
-
-  if activeStatus == false then
-    offset = totalNumberSymbolsToImport;
-  end
-
-  return getMATricksAppearanceIndex() + 1 + offset;
+function getNumbersAppearancesOffset()
+  return getMATricksAppearanceIndex() + 1;
 end
 
 function mapMATricksIndexFromGroupArrayIndex(groupArrayID)
@@ -148,7 +140,10 @@ function getAsGroup(groupIndex)
 end
 
 function getAsColorPreset(index)
-  return getGma3Pools().Preset:Children()[4]:Children()[index];
+
+  local preset = DataPool().PresetPools[4][index];
+
+  return preset;
 end
 
 function storePoolObject(poolType, index)
@@ -263,7 +258,23 @@ end
 ------------ Create Layout ------------
 
 function getColorAppearanceFromPreset(presetIndex)
-  local data = GetPresetData(getAsColorPreset(presetIndex), false, false);
+
+  local preset = getAsColorPreset(presetIndex);
+
+  if !GetPresetData(preset) then 
+    showFault("Error: Missing absolute color values.\n Is the universal fixture still patched?");
+  end
+
+-- applying Universal fixture to preset to be able to easily get color data out of the preset 
+  execute("Universal 1 at preset 4.".. preset.no);
+  execute("Store Preset 4."..preset.no .." /m /nc");
+  execute("ClearAll")		;
+
+  local data = GetPresetData(preset);
+
+  if (preset_content[3][1].absolute == nil) or (preset_content[4][1].absolute == nil) or (preset_content[5][1].absolute == nil) then
+		showFault("Error: Missing absolute color values.\n Is the universal fixture still patched?");
+  end
 
   return {
     color_R = 255 * (data[3][1].absolute / 100),
@@ -315,35 +326,6 @@ function createAppereances()
   local matricksAppearance = appearancePool[getMATricksAppearanceIndex()];
   matricksAppearance:Set("name", "MATricks");
   matricksAppearance:Set('mediafilename', getSymbol("matricks"))
-
-  -- Create Number and Calculator Appearances --
-
-  local numberOffsetActiveOffset = getNumbersAppearancesOffset(true) + 1;
-  local numberOffsetInActiveOffset = getNumbersAppearancesOffset(false);
-
-  local calculatorOffset = getNumbersAppearancesOffset(true);
-
-  storePoolObject("Appearance", calculatorOffset);
-  local calculatorAppearance = appearancePool[calculatorOffset];
-  calculatorAppearance:Set("name", "Calculator");
-  calculatorAppearance:Set('mediafilename', getSymbol("calculator_white"));
-
-  for i = 1, totalNumberSymbolsToImport do
-    
-    local currentNumberOffsetActive = numberOffsetActiveOffset + i - 1;
-    local currentNumberOffsetInActive = numberOffsetInActiveOffset + i;
-
-    storePoolObject("Appearance", currentNumberOffsetActive);
-    storePoolObject("Appearance", currentNumberOffsetInActive);
-
-    local numberOffsetActive = appearancePool[currentNumberOffsetActive];
-    numberOffsetActive:Set("name", i - 1 .. " - Active");
-    numberOffsetActive:Set('mediafilename', getSymbol("number_" .. i - 1 .. "_white"));
-
-    local numberOffsetInActive = appearancePool[currentNumberOffsetInActive];
-    numberOffsetInActive:Set("name", i - 1 .. " - InActive");
-    numberOffsetInActive:Set('mediafilename', getSymbol("number_" .. i - 1 .. "_black"));
-  end
 end
 
 function registerLayoutItem(iobjectType, iobjectIndex, iwidth, iheight, iposX, iposY, irow, icolumn, ivisibleText)
@@ -479,11 +461,12 @@ function createGridMacrosAndSequenses()
     end
 end
 
-function createMATricksShortcut(macroOffset, matricksFunction, row, columnOffset)
+function createMATricksShortcut(macroOffset, matricksFunction, colors, row, columnOffset)
+
+  local appearanceOffset = getNumbersAppearancesOffset()
 
   storePoolObject("Macro", macroOffset .. " Thru " .. macroOffset + totalNumberSymbolsToImport);
   
-
 end
 
 function createMATricksShortCutsAndExtendedOptions()
@@ -512,13 +495,13 @@ function createMATricksShortCutsAndExtendedOptions()
     registerLayoutItem("Macro", currentMacroIndex, nil, nil, nil, nil, gi, #pluginPresets + 2, false);
   end
 
-  local numbersMacroOffset = macroOffset + #pluginGroups;
+  local numbersMacroOffset = macroOffset + #pluginGroups + 1;
 
   createMATricksShortcut(numbersMacroOffset, "Delay From X", #pluginGroups + 3, 1);
   createMATricksShortcut(numbersMacroOffset + (totalNumberSymbolsToImport * 1), "Delay To X", #pluginGroups + 3, 6);
 
   createMATricksShortcut(numbersMacroOffset + (totalNumberSymbolsToImport * 2), "Fade From X", #pluginGroups + 4, 1);
-  createMATricksShortcut(numbersMacroOffset + (totalNumberSymbolsToImport * 3), "Fade To X", #pluginGroups + 4, 6);
+  createMATricksShortcut(numbersMacroOffset + (totalNumberSymbolsToImport * 3), "Wings", #pluginGroups + 4, 6);
 end
 
 function setLayoutItemProperty(layoutIndex, layoutItemIndex, property, value)
@@ -528,7 +511,6 @@ end
 function buildLayout()
 
   local layoutIndex = pluginOffset;
-
   storePoolObject("Layout", layoutIndex)
 
   createAppereances();
