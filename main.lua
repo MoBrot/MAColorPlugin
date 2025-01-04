@@ -31,6 +31,7 @@ local function getGma3Pools()
 end
 
 -- Plugin Config ---
+local pluginVariablePrefix = "MyColorGrid"
 local pluginOffset = 3000;
 local pluginButtonWidth = 150;
 local pluginButtonHeight = 150;
@@ -328,7 +329,6 @@ function createAppereances()
 
   storePoolObjects("Appearance", pluginOffset, (pluginOffset + (#pluginPresets * 2)));
 
-
   for i = 1, #pluginPresets do
     local color = getColorAppearanceFromPreset(pluginPresets[i]);
 
@@ -481,25 +481,75 @@ function createGridMacrosAndSequenses()
     end
 end
 
-function createMATricksShortcut(value, macroOffset, appearanceOffset, matricksFunction, colors, row, columnOffset)
+function setValueForAllGroupMATricks(macro, maTricksfunction, value)
+  for i = 1, #pluginGroups do
+    storeNewMacroLine(macro, "Set Value", "Set MATricks " .. mapMATricksIndexFromGroupArrayIndex(i) .. " Property \"" .. maTricksfunction .. "\" " .. value);
+  end
+end
+
+function createMATricksShortcut(values, macroOffset, appearanceOffset, matricksFunction, colors, row, columnOffset)
   local appearancePool = getGma3Pools().Appearance;
+  local macroPool = getGma3Pools().Macro;
+
+  local validMatricksFunction = string.gsub(matricksFunction, " ", "");
 
   local inActiveAppearance = storePoolObject("Appearance", appearanceOffset, appearancePool);
   local activeAppearance = storePoolObject("Appearance", appearanceOffset + 1, appearancePool);
   local calculatorAppearance = storePoolObject("Appearance", appearanceOffset + 2, appearancePool);
 
+  local offAllMacrosCommand = "Assign Appearance " .. inActiveAppearance.no .. " at Macro " .. macroOffset + 1 .. " Thru " .. macroOffset + #values;
+
+  -- Create Appearances --
   setColorAppearance(inActiveAppearance, colors, pluginUI.inActiveImage); -- Inactiv
   setColorAppearance(activeAppearance, colors, pluginUI.activeImage); -- Active
   setColorAppearance(calculatorAppearance, colors, pluginUI.activeImage); -- Calculator
   calculatorAppearance:Set("mediafilename", getSymbol("calculator_black"));
 
-  for i = 1, #value do
+  -- Create Calculator --
+  local variableName = pluginVariablePrefix .. "SetForAllMATricks";
 
-    local currentValue = value[i];
-    local currentMacroID = macroOffset + i - 1;
+  local calculatorOffset = 1 + #values;
+  local calculatorMacro = storePoolObject("Macro", macroOffset + calculatorOffset, macroPool);
+  calculatorMacro:Set("appearance", calculatorAppearance.no);
+  
+  storeNewMacroLine(calculatorMacro.no, "Set UserVar", "Setuservariable \"" .. variableName .. "\" (Set " .. matricksFunction .. " for all Groups)");
+  setValueForAllGroupMATricks(calculatorMacro.no, validMatricksFunction, "$" .. variableName);
+  storeNewMacroLine(calculatorMacro.no, "Off All", offAllMacrosCommand);
 
-    local currentMacro = storePoolObject("Macro", currentMacroID, getGma3Pools().Macro);
+  registerLayoutItem("Macro", calculatorMacro.no, nil, nil, nil, nil, row, columnOffset + calculatorOffset, false);
 
+  -- Create Label --
+  local labelMacro = storePoolObject("Macro", macroOffset, macroPool);
+  labelMacro:Set("name", matricksFunction);
+  labelMacro:Set("appearance", pluginOffset);
+  registerLayoutItem("Macro", labelMacro.no, nil, nil, nil, nil, row, columnOffset, true);
+  setValueForAllGroupMATricks(labelMacro.no, validMatricksFunction, 0);
+  storeNewMacroLine(labelMacro.no, "Off All", offAllMacrosCommand);
+
+  -- Create Shortcuts --
+  for i = 1, #values do
+
+    local currentValue = values[i];
+    local currentMacroID = macroOffset + i;
+
+    local currentMacro = storePoolObject("Macro", currentMacroID, macroPool);
+
+    local name = tostring(currentValue);
+
+    name = string.gsub(name, "0.5", "1/2");
+
+    if not string.find(matricksFunction, "Wing") then
+      name = name .. "s";
+    end
+
+    currentMacro:Set("name", name);
+    currentMacro:Set("appearance", inActiveAppearance.no);
+
+    setValueForAllGroupMATricks(currentMacroID, validMatricksFunction, currentValue);
+    storeNewMacroLine(currentMacro.no, "Off All", offAllMacrosCommand);
+    storeNewMacroLine(currentMacro.no, "On Macro", "Assign Appearance " .. activeAppearance.no .. " at Macro " .. currentMacro.no);
+
+    registerLayoutItem("Macro", currentMacro.no, nil, nil, nil, nil, row, columnOffset + i, true);
   end
 end
 
@@ -511,7 +561,6 @@ function createMATricksShortCutsAndExtendedOptions()
 
   local labelMacro = storePoolObject("Macro", macroOffset, macroPool);
   labelMacro:Set("name", "MATricks Settings");
-  labelMacro:Set("appearance", pluginOffset);
   registerLayoutItem("Macro", macroOffset, nil, nil, nil, nil, 0, #pluginPresets + 2, true);
 
   for gi = 1, #pluginGroups do
@@ -547,7 +596,7 @@ function createMATricksShortCutsAndExtendedOptions()
 
   createMATricksShortcut(
     pluginMATricksShortcutTimes,
-     numbersMacroOffset + #pluginMATricksShortcutTimes,
+     numbersMacroOffset + #pluginMATricksShortcutTimes + 2,
       numbersAppearanceOffset + #pluginMATricksShortcutTimes,
        "Delay To X",
         {
@@ -556,12 +605,12 @@ function createMATricksShortCutsAndExtendedOptions()
           color_B = 13
         },
          #pluginGroups + 3,
-          6
+          7
         );
 
   createMATricksShortcut(
     pluginMATricksShortcutTimes,
-     numbersMacroOffset + (#pluginMATricksShortcutTimes * 2),
+     numbersMacroOffset + (#pluginMATricksShortcutTimes * 3) + 1,
       numbersAppearanceOffset + (#pluginMATricksShortcutTimes * 2),
        "Fade From X",
         {
@@ -575,9 +624,9 @@ function createMATricksShortCutsAndExtendedOptions()
 
   createMATricksShortcut(
     pluginMATricksWings,
-     numbersMacroOffset + (#pluginMATricksShortcutTimes * 3),
+     numbersMacroOffset + (#pluginMATricksShortcutTimes * 5),
       numbersAppearanceOffset + (#pluginMATricksShortcutTimes * 3),
-       "Wings",
+       "XWings",
         {
           color_R = 13,
           color_G = 118,
