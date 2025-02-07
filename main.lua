@@ -1,3 +1,4 @@
+---@diagnostic disable: need-check-nil
 local function getGma3Pools()
   return {
     -- token = PoolHandle
@@ -33,9 +34,10 @@ end
 -- Plugin Config ---
 local pluginVariablePrefix = "MyColorGrid"
 local pluginOffset = 3000;
+local pluginBumpsOffset = 30;
 local pluginButtonWidth = 150;
 local pluginButtonHeight = 150;
-local pluginButtonSeparation = 6;
+local pluginButtonSeparation = 4;
 local maximumPresets = 40;
 
 -- In Seconds --
@@ -52,17 +54,24 @@ local pluginMATricksWings = {
 
 local pluginGroups = {};
 local pluginPresets = {};
-local pluginBumpGroup = 0;
+local pluginBumpGroup = 5;
 
 -- Required Images --
 local pluginUI = {
-  activeImage = {
-    name = "Color-GridItem-active.png.xml",
-    index = pluginOffset + 1
+  images = {
+    activeImage = {
+      name = "Color-GridItem-active.png.xml",
+      index = pluginOffset + 1
+    },
+    inActiveImage = {
+      name = "Color-GridItem-inactive.png.xml",
+      index = pluginOffset + 2
+    }
   },
-  inActiveImage = {
-    name = "Color-GridItem-inactive.png.xml",
-    index = pluginOffset + 2
+  appearances = {
+    inActiveAppearance = {
+      index = pluginOffset
+    }
   }
 };
 
@@ -94,7 +103,7 @@ function getNumbersAppearancesOffset()
 end
 
 function mapMATricksIndexFromGroupArrayIndex(groupArrayID)
-  return pluginOffset + groupArrayID - 1;
+  return pluginOffset + groupArrayID;
 end
 
 function pluginColorPresetAmount()
@@ -121,6 +130,10 @@ end
 
 function getAllColorChangeMacrosOffset()
   return getGroupOffsetIndex() + #pluginGroups;
+end
+
+function getPreDefineGridOffset()
+  return ((getAllColorChangeMacrosOffset() + #pluginPresets) + (#pluginGroups + 1) + (#pluginMATricksShortcutTimes * 6)) + 1;
 end
 
 function stringToIntArray(str)
@@ -175,6 +188,9 @@ function storePoolObjects(poolType, indexFrom, indexTo)
   execute("Store " .. poolType .. " " .. indexFrom .. " Thru" .. indexTo);
 end
 
+function getVariableNameFromGroupName(groupName)
+  return groupName:gsub(" ", "") .. "-colorgridcolor";
+end
 -----------------------------------
 
 ------------ Suggestions ------------
@@ -282,6 +298,33 @@ end
 
 ------------ Create Layout ------------
 
+function createPredefineGrid()
+
+  local macroOffset = getPreDefineGridOffset();
+  local layoutPositionX = #pluginPresets + 2;
+
+  local i = 0;
+  for y = 1, 4, 1 do
+
+    for x = 1, 4, 1 do
+        i = i + 1;
+
+        local currentMacroOffset = macroOffset + i + 1;
+        local currentMacro = storePoolObject("Macro", currentMacroOffset, getGma3Pools().Macro);
+
+        currentMacro:Set("name", "Preset " .. i);
+
+        registerLayoutItem("Macro", currentMacroOffset, nil, nil, nil, nil, y, layoutPositionX + x);
+    end
+  end
+
+  local storeMacroOffset = macroOffset + 1;
+  local storeMacro = storePoolObject("Macro", storeMacroOffset, getGma3Pools().Macro);
+  storeMacro:Set("name", "Store Predefined");
+
+  registerLayoutItem("Macro", storeMacroOffset, pluginButtonWidth * 2, nil, nil, math.floor( pluginButtonHeight / 3 ), 5, layoutPositionX + 1);
+end
+
 function getColorAppearanceFromPreset(presetIndex)
 
   local preset = getAsColorPreset(presetIndex);
@@ -322,7 +365,7 @@ function createAppereances()
   ------- Create Color Appearances -------
 
   -- Import Images --
-  for key, image in pairs(pluginUI) do
+  for key, image in pairs(pluginUI.images) do
     execute("Delete Image " .. image.index);
     execute("Import Image 'Images'." .. image.index .." /File '" .. image.name .. "' /nc /o")
   end
@@ -335,12 +378,12 @@ function createAppereances()
     local currentAppearanceIndex = pluginOffset + i;
     local currentAppearance = appearancePool[currentAppearanceIndex];
 
-    setColorAppearance(currentAppearance, color, pluginUI.activeImage);
+    setColorAppearance(currentAppearance, color, pluginUI.images.activeImage);
 
     local currentAppearanceIndexInactivs = pluginOffset + i + #pluginPresets;
     local currentAppearanceInactivs = appearancePool[currentAppearanceIndexInactivs];
 
-    setColorAppearance(currentAppearanceInactivs, color, pluginUI.inActiveImage);
+    setColorAppearance(currentAppearanceInactivs, color, pluginUI.images.inActiveImage);
   end
   -------------------------------------------
 
@@ -350,18 +393,21 @@ function createAppereances()
   matricksAppearance:Set('mediafilename', getSymbol("matricks"))
 end
 
-function registerLayoutItem(iobjectType, iobjectIndex, iwidth, iheight, iposX, iposY, irow, icolumn, ivisibleText)
+function registerLayoutItem(iobjectType, iobjectIndex, iwidth, iheight, iposXModifier, iposYModifier, irow, icolumn, ivisibleText)
 
   local finalWidth = iwidth or pluginButtonWidth;
   local finalHeight = iheight or pluginButtonHeight;
+
+  local xModifier = iposXModifier or 0;
+  local yModifier = iposYModifier or 0;
 
   layoutItem = {
     objectType = iobjectType,
     objectIndex = iobjectIndex,
     width = finalWidth,
     height = finalHeight,
-    posX = iposX or ((icolumn * finalWidth) + (icolumn * pluginButtonSeparation)),
-    posY = iposY or ((irow * finalHeight) + (irow * pluginButtonSeparation)),
+    posX = ((icolumn * pluginButtonWidth) + (icolumn * pluginButtonSeparation)) + xModifier,
+    posY = ((irow * finalHeight) + (irow * pluginButtonSeparation)) + yModifier,
     visibleText = ivisibleText
   }
 
@@ -421,7 +467,7 @@ function createGridMacrosAndSequenses()
     local currentGroupMacro = storePoolObject("Macro", currentGroupMacroIndex, macroPool);
 
     currentGroupMacro:Set("name", group.name);
-    currentGroupMacro:Set("appearance", pluginOffset);
+    currentGroupMacro:Set("appearance", pluginUI.appearances.inActiveAppearance.index);
     storeNewMacroLine(currentGroupMacroIndex, "Clear", "Clear");
     storeNewMacroLine(currentGroupMacroIndex, "Select Group", "#[Group " .. group.no .. "]");
 
@@ -447,8 +493,11 @@ function createGridMacrosAndSequenses()
     -- Create Color Macros
     local macros = createMacrosForColorRow(macroOffset, false, gi);
     for i = 1, #macros do
-      storeNewMacroLine(macros[i], "Go Sequence", "Go+ #[Sequence " .. macros[i] .. "]");
-      storeNewMacroLine(macros[i], "Set Active Image", "Assign Appearance " .. mapColorAppearanceFromPresetID(i, true) .. " at Macro ".. macros[i]);
+
+      local currentMacro = macros[i];
+
+      storeNewMacroLine(currentMacro, "Go Sequence", "Go+ #[Sequence " .. currentMacro .. "]");
+      storeNewMacroLine(currentMacro, "Set Active Image", "Assign Appearance " .. mapColorAppearanceFromPresetID(i, true) .. " at Macro ".. currentMacro);
       
       local assignString = "";
       for m = 1, #macros do
@@ -458,10 +507,12 @@ function createGridMacrosAndSequenses()
       end
 
       storeNewMacroLine(
-        macros[i],
+        currentMacro,
         "Assign Deactivating Appearance",
         assignString
       );
+
+      storeNewMacroLine(currentMacro, "Set Info For Pre Defined Grid", 'SetGlobalVariable "' .. getVariableNameFromGroupName(group.name) .. '" '.. currentMacro .. '')
     end
   end
 
@@ -500,9 +551,9 @@ function createMATricksShortcut(values, macroOffset, appearanceOffset, matricksF
   local offAllMacrosCommand = "Assign Appearance " .. inActiveAppearance.no .. " at Macro " .. macroOffset + 1 .. " Thru " .. macroOffset + #values;
 
   -- Create Appearances --
-  setColorAppearance(inActiveAppearance, colors, pluginUI.inActiveImage); -- Inactiv
-  setColorAppearance(activeAppearance, colors, pluginUI.activeImage); -- Active
-  setColorAppearance(calculatorAppearance, colors, pluginUI.activeImage); -- Calculator
+  setColorAppearance(inActiveAppearance, colors, pluginUI.images.inActiveImage); -- Inactiv
+  setColorAppearance(activeAppearance, colors, pluginUI.images.activeImage); -- Active
+  setColorAppearance(calculatorAppearance, colors, pluginUI.images.activeImage); -- Calculator
   calculatorAppearance:Set("mediafilename", getSymbol("calculator_black"));
 
   -- Create Calculator --
@@ -521,7 +572,7 @@ function createMATricksShortcut(values, macroOffset, appearanceOffset, matricksF
   -- Create Label --
   local labelMacro = storePoolObject("Macro", macroOffset, macroPool);
   labelMacro:Set("name", matricksFunction);
-  labelMacro:Set("appearance", pluginOffset);
+  labelMacro:Set("appearance", pluginUI.appearances.inActiveAppearance.index);
   registerLayoutItem("Macro", labelMacro.no, nil, nil, nil, nil, row, columnOffset, true);
   setValueForAllGroupMATricks(labelMacro.no, validMatricksFunction, 0);
   storeNewMacroLine(labelMacro.no, "Off All", offAllMacrosCommand);
@@ -560,8 +611,24 @@ function createMATricksShortCutsAndExtendedOptions()
   local macroOffset = getAllColorChangeMacrosOffset() + #pluginPresets;
 
   local labelMacro = storePoolObject("Macro", macroOffset, macroPool);
+  local generalMATricks = storePoolObject("MAtricks", pluginOffset, getGma3Pools().Matricks);
+  execute("Label MATricks " .. pluginOffset .. " General MATricks");
+
   labelMacro:Set("name", "MATricks Settings");
-  registerLayoutItem("Macro", macroOffset, nil, nil, nil, nil, 0, #pluginPresets + 2, true);
+  labelMacro:Set("appearance", pluginUI.appearances.inActiveAppearance.index);
+
+  storeNewMacroLine(labelMacro.no, "Edit General MATricks", "Edit MAtricks " .. pluginOffset)
+
+  local applyGeneralMATricksMacro = storePoolObject("Macro", getPreDefineGridOffset(), getGma3Pools().Macro);
+  applyGeneralMATricksMacro:Set("name", "Apply to All");
+  applyGeneralMATricksMacro:Set("appearance", pluginUI.appearances.inActiveAppearance.index);
+
+  for i = 1, #pluginGroups do
+    storeNewMacroLine(applyGeneralMATricksMacro.no, "Set MATricks to Group Tricks", "Copy MATricks " .. pluginOffset .. " At " .. mapMATricksIndexFromGroupArrayIndex(i) .. " /o");
+  end
+
+  registerLayoutItem("Macro", applyGeneralMATricksMacro.no, nil, nil, nil, nil, 0, #pluginPresets + 2, true);
+  registerLayoutItem("Macro", macroOffset, nil, nil, nil, nil, 0, #pluginPresets + 1, true);
 
   for gi = 1, #pluginGroups do
 
@@ -574,7 +641,7 @@ function createMATricksShortCutsAndExtendedOptions()
     currentMacro:Set("name", "Edit " .. getGma3Pools().Group[pluginGroups[gi]].name .. " Matricks");
     currentMacro:Set("appearance", getMATricksAppearanceIndex());
 
-    registerLayoutItem("Macro", currentMacroIndex, nil, nil, nil, nil, gi, #pluginPresets + 2, false);
+    registerLayoutItem("Macro", currentMacroIndex, nil, nil, nil, nil, gi, #pluginPresets + 1, false);
   end
 
   local numbersMacroOffset = macroOffset + #pluginGroups + 1;
@@ -677,14 +744,17 @@ end
 
 local offsetText = "Offset";
 local gridGroupsText = "Grid-Groups";
-local bumpsGroupsText = "Bump-Groups";
+local bumpsGroupsText = "Bump-Group";
+local bumpsSequenceOffset = "Bump-Sequence-Offset";
+
 local gridPresetsText = "Grid-Presets";
 
 function buildDefaultUI(groupSuggest, presetSuggest)
   local textInputs = {
     { name = offsetText, value = tostring(pluginOffset), whiteFilter = "0123456789" },
     { name = gridGroupsText, value = groupSuggest, whiteFilter = ",0123456789" },
-    { name = bumpsGroupsText, value = string.match(groupSuggest, "([^,]+)"), whiteFilter = "0123456789" },
+    { name = bumpsGroupText, value = pluginBumpGroup, whiteFilter = "0123456789" },
+    { name = bumpsSequenceOffset, value =  tostring(pluginBumpsOffset), whiteFilter = "0123456789"},
     { name = gridPresetsText, value = presetSuggest, whiteFilter = ",0123456789" }
   };
 
@@ -730,10 +800,13 @@ function main()
   pluginOffset = inputs[offsetText];
   pluginGroups = stringToIntArray(inputs[gridGroupsText]);
   pluginPresets = stringToIntArray(inputs[gridPresetsText]);
-  pluginBumpGroup = inputs[bumpsGroupsText];
+  pluginBumpGroup = inputs[bumpsGroupText];
+  pluginBumpsOffset = inputs[bumpsSequenceOffset];
 
   -- Check if all Groups are valid and check if all Presets are valid 
   -- build Info Messagebox
+
+  createPredefineGrid();
 
   buildLayout();
 end

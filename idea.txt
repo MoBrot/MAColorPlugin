@@ -1,0 +1,7 @@
+
+-> MATrickShortcuts: Custom macroShortcut slot welcher von dem taschenrechner gesetzt wird
+-> MATrickShortcuts: Auto Shuffle
+
+-> BumpMaker: Extra Reihe für die Farbe der Bumps
+-> Bumpmaker: Automatische erstellung von Links/Rechts/odd/Even Gruppen
+-> BumpMaker: Erstellung von einer Sequence bei der bei jedem Bump eine andere/random Gruppe von Fixtures genutzt wird
